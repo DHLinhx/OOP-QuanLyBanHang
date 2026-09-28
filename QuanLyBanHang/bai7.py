@@ -1,5 +1,5 @@
 class GiaoDich:
-    def __init__(self, ma_gd="", ngay_gd="", don_gia=0.0, so_luong=0):
+    def __init__(self, ma_gd="", ngay_gd="", don_gia=0.0, so_luong=0):aa
         self.ma_gd = ma_gd
         self.ngay_gd = ngay_gd
         self.don_gia = don_gia
