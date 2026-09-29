@@ -1,11 +1,6 @@
 package models;
 
 import java.time.LocalDate;
-
-/**
- * Đơn hàng. Trạng thái dùng enum TrangThaiDonHang
- * (DANG_XU_LY, HOAN_THANH, DA_HUY).
- */
 public class DonHang {
     private String maDonHang;
     private LocalDate ngayDat;
@@ -37,7 +32,6 @@ public class DonHang {
     public boolean isHoanThanh() {
         return trangThai == TrangThaiDonHang.HOAN_THANH;
     }
-
     @Override
     public String toString() {
         return String.format("DonHang[%s | %s | %s | KH=%s | NV=%s]",

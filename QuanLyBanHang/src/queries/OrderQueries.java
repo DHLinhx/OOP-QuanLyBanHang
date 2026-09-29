@@ -4,6 +4,7 @@ import database.DataContext;
 import models.ChiTietDonHang;
 import models.DonHang;
 import models.KhachHang;
+import models.NhanVien;
 import models.TrangThaiDonHang;
 
 import java.time.YearMonth;
@@ -16,12 +17,12 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Các câu truy vấn về Đơn hàng & Chi tiết đơn hàng (phần của Người 3):
- *   Câu 8, 9, 10, 11, 17, 20, 21, 23, 29, 30.
- * Các câu 6, 7 do người khác viết, KHÔNG sửa ở đây.
+ * Các câu truy vấn về Đơn hàng & Chi tiết đơn hàng:
+ *   Câu 6, 7, 8, 9, 10, 11, 17, 20, 21, 23, 29, 30.
  *
- * DataContext cần có: getKhachHangs(), getDonHangs(), getChiTietDonHangs()
+ * DataContext cần có: getKhachHangs(), getNhanViens(), getDonHangs(), getChiTietDonHangs()
  * KhachHang cần có:   getMaKhachHang(), getHoTen(), getThanhPho(), getEmail()
+ * NhanVien cần có:    getMaNhanVien(), getHoTen()
  *
  * QUY ƯỚC (ghi rõ để cả nhóm thống nhất):
  *  - Thành tiền một dòng = SoLuong * DonGia * (1 - TyLeGiamGia).
@@ -149,6 +150,81 @@ public class OrderQueries {
             return String.format("%-6s | %-25s | Số đơn: %2d | Số SP: %3d | Chi tiêu: %,.0f",
                     maKhachHang, hoTen, tongSoDon, tongSanPham, tongChiTieu);
         }
+    }
+
+    // =====================================================================
+    // CÂU 6, 7: LỌC ĐƠN THEO THÁNG, NỐI ĐƠN VỚI KHÁCH VÀ NHÂN VIÊN
+    // =====================================================================
+
+    /** Kết quả câu 7: một đơn hàng kèm khách hàng và nhân viên lập đơn. */
+    public static class DonHangDayDu {
+        public final DonHang donHang;
+        public final KhachHang khachHang;
+        public final NhanVien nhanVien;
+
+        public DonHangDayDu(DonHang donHang, KhachHang khachHang, NhanVien nhanVien) {
+            this.donHang = donHang;
+            this.khachHang = khachHang;
+            this.nhanVien = nhanVien;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Đơn %s | %s | %s | Khách: %s (%s) | Nhân viên: %s (%s)",
+                    donHang.getMaDonHang(), donHang.getNgayDat(), donHang.getTrangThai(),
+                    khachHang.getHoTen(), khachHang.getMaKhachHang(),
+                    nhanVien.getHoTen(), nhanVien.getMaNhanVien());
+        }
+    }
+
+    /**
+     * Câu 6: Lọc đơn HOÀN THÀNH trong một tháng (đề: tháng 02/2026), ngày tăng dần.
+     *
+     * SELECT * FROM DonHang
+     * WHERE TrangThai = 'HOAN_THANH'
+     *   AND YEAR(NgayDat) = 2026 AND MONTH(NgayDat) = 2
+     * ORDER BY NgayDat;
+     */
+    public static List<DonHang> cau6_donHoanThanhTrongThang(DataContext ctx, YearMonth thang) {
+        return ctx.getDonHangs().stream()
+                .filter(DonHang::isHoanThanh)
+                .filter(d -> YearMonth.from(d.getNgayDat()).equals(thang))
+                .sorted((a, b) -> a.getNgayDat().compareTo(b.getNgayDat()))
+                .collect(Collectors.toList());
+    }
+
+    /** Câu 6 đúng theo đề: tháng 02/2026. */
+    public static List<DonHang> cau6_donHoanThanhThang02_2026(DataContext ctx) {
+        return cau6_donHoanThanhTrongThang(ctx, YearMonth.of(2026, 2));
+    }
+
+    /**
+     * Câu 7: Nối đơn hàng với khách hàng và nhân viên (INNER JOIN 3 bảng).
+     *        Đơn thiếu khách hoặc thiếu nhân viên tương ứng sẽ không xuất hiện,
+     *        giống JOIN trong SQL.
+     *
+     * SELECT dh.MaDonHang, dh.NgayDat, dh.TrangThai,
+     *        kh.MaKhachHang, kh.HoTen AS TenKhach,
+     *        nv.MaNhanVien,  nv.HoTen AS TenNhanVien
+     * FROM DonHang dh
+     * JOIN KhachHang kh ON dh.MaKhachHang = kh.MaKhachHang
+     * JOIN NhanVien  nv ON dh.MaNhanVien  = nv.MaNhanVien;
+     */
+    public static List<DonHangDayDu> cau7_noiDonKhachNhanVien(DataContext ctx) {
+        Map<String, KhachHang> khachTheoMa = ctx.getKhachHangs().stream()
+                .collect(Collectors.toMap(KhachHang::getMaKhachHang, kh -> kh, (a, b) -> a));
+        Map<String, NhanVien> nvTheoMa = ctx.getNhanViens().stream()
+                .collect(Collectors.toMap(NhanVien::getMaNhanVien, nv -> nv, (a, b) -> a));
+
+        List<DonHangDayDu> kq = new ArrayList<>();
+        for (DonHang d : ctx.getDonHangs()) {
+            KhachHang kh = khachTheoMa.get(d.getMaKhachHang());
+            NhanVien nv = nvTheoMa.get(d.getMaNhanVien());
+            if (kh != null && nv != null) {
+                kq.add(new DonHangDayDu(d, kh, nv));
+            }
+        }
+        return kq;
     }
 
     // =====================================================================
@@ -424,43 +500,49 @@ public class OrderQueries {
     // CHẠY THỬ TẤT CẢ (gọi từ Main.java để kiểm tra kết quả)
     // =====================================================================
     public static void chayTatCa(DataContext ctx) {
-        System.out.println("=== Câu 8: Chi tiết và thành tiền đơn 1001 ===");
+        System.out.println(" Câu 6: Đơn hoàn thành trong tháng 02/2026 ");
+        cau6_donHoanThanhThang02_2026(ctx).forEach(System.out::println);
+
+        System.out.println("\nCâu 7: Đơn hàng nối khách hàng và nhân viên");
+        cau7_noiDonKhachNhanVien(ctx).forEach(System.out::println);
+
+        System.out.println("\nCâu 8: Chi tiết và thành tiền đơn 1001 ");
         List<ChiTietDonHang> ct8 = cau8_chiTietDon1001(ctx);
         ct8.forEach(System.out::println);
         System.out.printf("Tổng tiền đơn 1001: %,.0f%n",
                 ct8.stream().mapToDouble(ChiTietDonHang::getThanhTien).sum());
 
-        System.out.println("\n=== Câu 9: Tổng tiền từng đơn ===");
+        System.out.println("\n Câu 9: Tổng tiền từng đơn ");
         cau9_tongTienTungDon(ctx).forEach((k, v) -> System.out.printf("Đơn %s : %,.0f%n", k, v));
 
-        System.out.printf("%n=== Câu 10: Tổng doanh thu đơn hoàn thành: %,.0f%n",
+        System.out.printf("%n Câu 10: Tổng doanh thu đơn hoàn thành: %,.0f%n",
                 cau10_tongDoanhThuHoanThanh(ctx));
 
-        System.out.println("\n=== Câu 11: Doanh thu theo tháng ===");
+        System.out.println("\n Câu 11: Doanh thu theo tháng ");
         cau11_doanhThuTheoThang(ctx).forEach((k, v) -> System.out.printf("%s : %,.0f%n", k, v));
 
-        System.out.println("\n=== Câu 17: Khách có ít nhất 2 đơn hoàn thành ===");
+        System.out.println("\n Câu 17: Khách có ít nhất 2 đơn hoàn thành ");
         cau17_khachTu2DonHoanThanh(ctx).forEach((kh, n) ->
                 System.out.printf("%s - %s : %d đơn%n", kh.getMaKhachHang(), kh.getHoTen(), n));
 
-        System.out.printf("%n=== Câu 20: Đơn trên trung bình (TB = %,.0f) ===%n",
+        System.out.printf("%n Câu 20: Đơn trên trung bình (TB = %,.0f)%n",
                 giaTriTrungBinhDon(ctx));
         cau20_donTrenTrungBinh(ctx).forEach((k, v) -> System.out.printf("Đơn %s : %,.0f%n", k, v));
 
-        System.out.println("\n=== Câu 21: Đơn có giá trị cao nhất ===");
+        System.out.println("\n Câu 21: Đơn có giá trị cao nhất ");
         cau21_donGiaTriCaoNhat(ctx).forEach(System.out::println);
 
-        System.out.println("\n=== Câu 23: Đơn hủy / đang xử lý ===");
+        System.out.println("\n Câu 23: Đơn hủy / đang xử lý ");
         KetQuaCau23 c23 = cau23_donHuyVaDangXuLy(ctx);
         c23.donHangs.forEach((d, t) -> System.out.printf("%s | Tổng: %,.0f%n", d, t));
         System.out.printf("Tổng thất thu (đã hủy)    : %,.0f%n", c23.thatThu);
         System.out.printf("Tổng chờ duyệt (đang xử lý): %,.0f%n", c23.choDuyet);
 
-        System.out.println("\n=== Câu 29: AOV của mỗi khách đã mua ===");
+        System.out.println("\n Câu 29: AOV của mỗi khách đã mua ");
         cau29_aovMoiKhach(ctx).forEach((kh, v) ->
                 System.out.printf("%s - %s : %,.0f%n", kh.getMaKhachHang(), kh.getHoTen(), v));
 
-        System.out.println("\n=== Câu 30: Ma trận khách hàng ===");
+        System.out.println("\n Câu 30: Ma trận khách hàng");
         cau30_maTranKhachHang(ctx).forEach(System.out::println);
     }
 }
