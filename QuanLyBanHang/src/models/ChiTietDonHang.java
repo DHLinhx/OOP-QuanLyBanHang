@@ -1,9 +1,4 @@
 package models;
-
-/**
- * Chi tiết đơn hàng: mỗi dòng là một sản phẩm trong một đơn.
- * TyLeGiamGia lưu dạng 0..1 (ví dụ 0.1 = giảm 10%).
- */
 public class ChiTietDonHang {
     private String maDonHang;
     private String maSanPham;
@@ -32,7 +27,6 @@ public class ChiTietDonHang {
     public void setDonGia(double donGia) { this.donGia = donGia; }
     public void setTyLeGiamGia(double tyLeGiamGia) { this.tyLeGiamGia = tyLeGiamGia; }
 
-    /** Thành tiền = SoLuong * DonGia * (1 - TyLeGiamGia) */
     public double getThanhTien() {
         return soLuong * donGia * (1 - tyLeGiamGia);
     }
