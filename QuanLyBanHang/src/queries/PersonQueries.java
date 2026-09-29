@@ -172,22 +172,15 @@ public class PersonQueries {
      * ORDER BY DoanhThu DESC;
      */
     public static Map<KhachHang, Double> cau13_doanhThuTungKhach(DataContext ctx) {
-        Map<String, Double> tienMoiDon = tinhTongTienDonHoanThanh(ctx);
-
-        Map<String, Double> doanhThuTheoKhach = ctx.getDonHangs().stream()
-                .filter(DonHang::isHoanThanh)
-                .collect(Collectors.groupingBy(
-                        DonHang::getMaKhachHang,
-                        Collectors.summingDouble(dh -> tienMoiDon.getOrDefault(dh.getMaDonHang(), 0.0))
-                ));
+        Map<String, Double> doanhThu = OrderQueries.doanhThuTheoMaKhach(ctx);
 
         return ctx.getKhachHangs().stream()
                 .sorted((a, b) -> Double.compare(
-                        doanhThuTheoKhach.getOrDefault(b.getMaKhachHang(), 0.0),
-                        doanhThuTheoKhach.getOrDefault(a.getMaKhachHang(), 0.0)))
+                        doanhThu.getOrDefault(b.getMaKhachHang(), 0.0),
+                        doanhThu.getOrDefault(a.getMaKhachHang(), 0.0)))
                 .collect(Collectors.toMap(
                         kh -> kh,
-                        kh -> doanhThuTheoKhach.getOrDefault(kh.getMaKhachHang(), 0.0),
+                        kh -> doanhThu.getOrDefault(kh.getMaKhachHang(), 0.0),
                         (oldVal, newVal) -> oldVal,
                         LinkedHashMap::new
                 ));
