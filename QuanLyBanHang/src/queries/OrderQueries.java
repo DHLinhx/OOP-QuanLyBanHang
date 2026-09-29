@@ -15,34 +15,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
-/**
- * Các câu truy vấn về Đơn hàng & Chi tiết đơn hàng:
- *   Câu 6, 7, 8, 9, 10, 11, 17, 20, 21, 23, 29, 30.
- *
- * DataContext cần có: getKhachHangs(), getNhanViens(), getDonHangs(), getChiTietDonHangs()
- * KhachHang cần có:   getMaKhachHang(), getHoTen(), getThanhPho(), getEmail()
- * NhanVien cần có:    getMaNhanVien(), getHoTen()
- *
- * QUY ƯỚC (ghi rõ để cả nhóm thống nhất):
- *  - Thành tiền một dòng = SoLuong * DonGia * (1 - TyLeGiamGia).
- *  - Tổng tiền một đơn   = tổng thành tiền các dòng chi tiết của đơn đó.
- *  - "Doanh thu" / "đã mua" = chỉ tính đơn HOAN_THANH (xem TINH_DOANH_THU).
- *  - Câu 9, 20, 21 xét TẤT CẢ đơn (đề không nói trạng thái).
- */
 public class OrderQueries {
 
-    // =====================================================================
-    // HÀM DÙNG CHUNG
-    // =====================================================================
-
-    /**
-     * Điều kiện đơn được tính vào doanh thu / chi tiêu của khách.
-     * Nếu nhóm muốn đổi quy ước, chỉ cần sửa đúng dòng này.
-     */
     static final Predicate<DonHang> TINH_DOANH_THU = DonHang::isHoanThanh;
-
-    /** Sắp xếp Map theo giá trị giảm dần (giữ thứ tự bằng LinkedHashMap). */
     static <K, V extends Comparable<V>> Map<K, V> sapXepGiamDan(Map<K, V> map) {
         return map.entrySet().stream()
                 .sorted(Map.Entry.<K, V>comparingByValue().reversed())
@@ -51,10 +26,6 @@ public class OrderQueries {
                         (a, b) -> a, LinkedHashMap::new));
     }
 
-    /**
-     * Tổng tiền của MỌI đơn hàng (theo thứ tự trong danh sách đơn).
-     * Đơn chưa có dòng chi tiết nào có tổng = 0.
-     */
     static Map<String, Double> tongTienMoiDon(DataContext ctx) {
         Map<String, Double> tongDong = ctx.getChiTietDonHangs().stream()
                 .collect(Collectors.groupingBy(
@@ -66,14 +37,10 @@ public class OrderQueries {
         }
         return kq;
     }
-
-    /** Giá trị trung bình của một đơn hàng (trung bình trên TỔNG TỪNG ĐƠN). */
     static double giaTriTrungBinhDon(DataContext ctx) {
         return tongTienMoiDon(ctx).values().stream()
                 .mapToDouble(Double::doubleValue).average().orElse(0);
     }
-
-    /** maKhachHang -> doanh thu (chỉ các đơn thỏa TINH_DOANH_THU). */
     static Map<String, Double> doanhThuTheoMaKhach(DataContext ctx) {
         Map<String, Double> tong = tongTienMoiDon(ctx);
         return ctx.getDonHangs().stream()
@@ -83,18 +50,12 @@ public class OrderQueries {
                         Collectors.summingDouble(d -> tong.getOrDefault(d.getMaDonHang(), 0.0))));
     }
 
-    /** maKhachHang -> số đơn (chỉ các đơn thỏa TINH_DOANH_THU). */
     static Map<String, Long> soDonTheoMaKhach(DataContext ctx) {
         return ctx.getDonHangs().stream()
                 .filter(TINH_DOANH_THU)
                 .collect(Collectors.groupingBy(DonHang::getMaKhachHang, Collectors.counting()));
     }
 
-    // =====================================================================
-    // CÁC LỚP KẾT QUẢ (cho câu 21, 23, 30)
-    // =====================================================================
-
-    /** Kết quả câu 21: đơn hàng kèm thông tin khách hàng. */
     public static class DonHangKemKhach {
         public final DonHang donHang;
         public final KhachHang khachHang;
@@ -117,18 +78,13 @@ public class OrderQueries {
                     tongTien, kh);
         }
     }
-
-    /** Kết quả câu 23: đơn hủy / đang xử lý và tổng giá trị thất thu / chờ duyệt. */
     public static class KetQuaCau23 {
-        /** Đơn (DA_HUY hoặc DANG_XU_LY) -> tổng tiền của đơn đó. */
         public final Map<DonHang, Double> donHangs = new LinkedHashMap<>();
-        /** Tổng giá trị các đơn DA_HUY (thất thu). */
         public double thatThu = 0;
-        /** Tổng giá trị các đơn DANG_XU_LY (chờ duyệt). */
         public double choDuyet = 0;
     }
 
-    /** Kết quả câu 30: một dòng của ma trận khách hàng. */
+  
     public static class BaoCaoKhachHang {
         public final String maKhachHang;
         public final String hoTen;
@@ -151,12 +107,6 @@ public class OrderQueries {
                     maKhachHang, hoTen, tongSoDon, tongSanPham, tongChiTieu);
         }
     }
-
-    // =====================================================================
-    // CÂU 6, 7: LỌC ĐƠN THEO THÁNG, NỐI ĐƠN VỚI KHÁCH VÀ NHÂN VIÊN
-    // =====================================================================
-
-    /** Kết quả câu 7: một đơn hàng kèm khách hàng và nhân viên lập đơn. */
     public static class DonHangDayDu {
         public final DonHang donHang;
         public final KhachHang khachHang;
@@ -177,14 +127,6 @@ public class OrderQueries {
         }
     }
 
-    /**
-     * Câu 6: Lọc đơn HOÀN THÀNH trong một tháng (đề: tháng 02/2026), ngày tăng dần.
-     *
-     * SELECT * FROM DonHang
-     * WHERE TrangThai = 'HOAN_THANH'
-     *   AND YEAR(NgayDat) = 2026 AND MONTH(NgayDat) = 2
-     * ORDER BY NgayDat;
-     */
     public static List<DonHang> cau6_donHoanThanhTrongThang(DataContext ctx, YearMonth thang) {
         return ctx.getDonHangs().stream()
                 .filter(DonHang::isHoanThanh)
@@ -193,23 +135,10 @@ public class OrderQueries {
                 .collect(Collectors.toList());
     }
 
-    /** Câu 6 đúng theo đề: tháng 02/2026. */
     public static List<DonHang> cau6_donHoanThanhThang02_2026(DataContext ctx) {
         return cau6_donHoanThanhTrongThang(ctx, YearMonth.of(2026, 2));
     }
 
-    /**
-     * Câu 7: Nối đơn hàng với khách hàng và nhân viên (INNER JOIN 3 bảng).
-     *        Đơn thiếu khách hoặc thiếu nhân viên tương ứng sẽ không xuất hiện,
-     *        giống JOIN trong SQL.
-     *
-     * SELECT dh.MaDonHang, dh.NgayDat, dh.TrangThai,
-     *        kh.MaKhachHang, kh.HoTen AS TenKhach,
-     *        nv.MaNhanVien,  nv.HoTen AS TenNhanVien
-     * FROM DonHang dh
-     * JOIN KhachHang kh ON dh.MaKhachHang = kh.MaKhachHang
-     * JOIN NhanVien  nv ON dh.MaNhanVien  = nv.MaNhanVien;
-     */
     public static List<DonHangDayDu> cau7_noiDonKhachNhanVien(DataContext ctx) {
         Map<String, KhachHang> khachTheoMa = ctx.getKhachHangs().stream()
                 .collect(Collectors.toMap(KhachHang::getMaKhachHang, kh -> kh, (a, b) -> a));
@@ -226,52 +155,20 @@ public class OrderQueries {
         }
         return kq;
     }
-
-    // =====================================================================
-    // CÂU 8, 9, 10, 11: CHI TIẾT ĐƠN HÀNG, TÍNH TIỀN
-    // =====================================================================
-
-    /**
-     * Câu 8: Xem chi tiết và thành tiền của một đơn hàng (đề: đơn 1001).
-     *
-     * SELECT ct.MaSanPham, ct.SoLuong, ct.DonGia, ct.TyLeGiamGia,
-     *        ct.SoLuong * ct.DonGia * (1 - ct.TyLeGiamGia) AS ThanhTien
-     * FROM ChiTietDonHang ct
-     * WHERE ct.MaDonHang = '1001';
-     */
     public static List<ChiTietDonHang> cau8_chiTietDon(DataContext ctx, String maDonHang) {
         return ctx.getChiTietDonHangs().stream()
                 .filter(ct -> ct.getMaDonHang().equals(maDonHang))
                 .collect(Collectors.toList());
     }
 
-    /** Câu 8 đúng theo đề: đơn 1001. */
     public static List<ChiTietDonHang> cau8_chiTietDon1001(DataContext ctx) {
         return cau8_chiTietDon(ctx, "1001");
     }
 
-    /**
-     * Câu 9: Tính tổng tiền từng đơn.
-     *
-     * SELECT dh.MaDonHang,
-     *        COALESCE(SUM(ct.SoLuong * ct.DonGia * (1 - ct.TyLeGiamGia)), 0) AS TongTien
-     * FROM DonHang dh
-     * LEFT JOIN ChiTietDonHang ct ON dh.MaDonHang = ct.MaDonHang
-     * GROUP BY dh.MaDonHang
-     * ORDER BY dh.MaDonHang;
-     */
     public static Map<String, Double> cau9_tongTienTungDon(DataContext ctx) {
         return tongTienMoiDon(ctx);
     }
 
-    /**
-     * Câu 10: Tính tổng doanh thu các đơn HOÀN THÀNH.
-     *
-     * SELECT SUM(ct.SoLuong * ct.DonGia * (1 - ct.TyLeGiamGia)) AS TongDoanhThu
-     * FROM DonHang dh
-     * JOIN ChiTietDonHang ct ON dh.MaDonHang = ct.MaDonHang
-     * WHERE dh.TrangThai = 'HOAN_THANH';
-     */
     public static double cau10_tongDoanhThuHoanThanh(DataContext ctx) {
         Map<String, Double> tong = tongTienMoiDon(ctx);
         return ctx.getDonHangs().stream()
@@ -280,17 +177,6 @@ public class OrderQueries {
                 .sum();
     }
 
-    /**
-     * Câu 11: Thống kê doanh thu theo tháng (đơn hoàn thành), tháng tăng dần.
-     *
-     * SELECT YEAR(dh.NgayDat) AS Nam, MONTH(dh.NgayDat) AS Thang,
-     *        SUM(ct.SoLuong * ct.DonGia * (1 - ct.TyLeGiamGia)) AS DoanhThu
-     * FROM DonHang dh
-     * JOIN ChiTietDonHang ct ON dh.MaDonHang = ct.MaDonHang
-     * WHERE dh.TrangThai = 'HOAN_THANH'
-     * GROUP BY YEAR(dh.NgayDat), MONTH(dh.NgayDat)
-     * ORDER BY Nam, Thang;
-     */
     public static Map<YearMonth, Double> cau11_doanhThuTheoThang(DataContext ctx) {
         Map<String, Double> tong = tongTienMoiDon(ctx);
         return ctx.getDonHangs().stream()
@@ -300,22 +186,6 @@ public class OrderQueries {
                         TreeMap::new,
                         Collectors.summingDouble(d -> tong.getOrDefault(d.getMaDonHang(), 0.0))));
     }
-
-    // =====================================================================
-    // CÂU 17: KHÁCH CÓ ÍT NHẤT 2 ĐƠN HOÀN THÀNH
-    // =====================================================================
-
-    /**
-     * Câu 17: Tìm khách hàng có ít nhất 2 đơn HOÀN THÀNH (kèm số đơn, giảm dần).
-     *
-     * SELECT kh.MaKhachHang, kh.HoTen, COUNT(*) AS SoDonHoanThanh
-     * FROM KhachHang kh
-     * JOIN DonHang dh ON kh.MaKhachHang = dh.MaKhachHang
-     * WHERE dh.TrangThai = 'HOAN_THANH'
-     * GROUP BY kh.MaKhachHang, kh.HoTen
-     * HAVING COUNT(*) >= 2
-     * ORDER BY SoDonHoanThanh DESC;
-     */
     public static Map<KhachHang, Long> cau17_khachTu2DonHoanThanh(DataContext ctx) {
         Map<String, Long> dem = ctx.getDonHangs().stream()
                 .filter(DonHang::isHoanThanh)
@@ -331,21 +201,6 @@ public class OrderQueries {
         return sapXepGiamDan(kq);
     }
 
-    // =====================================================================
-    // CÂU 20, 21, 23: GIÁ TRỊ TRUNG BÌNH, LỚN NHẤT, HỦY / ĐANG XỬ LÝ
-    // =====================================================================
-
-    /**
-     * Câu 20: Tìm đơn có giá trị trên trung bình (giảm dần).
-     *
-     * SELECT MaDonHang, SUM(SoLuong * DonGia * (1 - TyLeGiamGia)) AS TongTien
-     * FROM ChiTietDonHang
-     * GROUP BY MaDonHang
-     * HAVING TongTien > (SELECT AVG(t.TongTien) FROM (
-     *     SELECT SUM(SoLuong * DonGia * (1 - TyLeGiamGia)) AS TongTien
-     *     FROM ChiTietDonHang GROUP BY MaDonHang) t)
-     * ORDER BY TongTien DESC;
-     */
     public static Map<String, Double> cau20_donTrenTrungBinh(DataContext ctx) {
         double tb = giaTriTrungBinhDon(ctx);
         Map<String, Double> kq = new LinkedHashMap<>();
@@ -357,19 +212,6 @@ public class OrderQueries {
         return sapXepGiamDan(kq);
     }
 
-    /**
-     * Câu 21: Tìm đơn hàng có giá trị cao nhất, kèm thông tin khách hàng
-     *         (nếu nhiều đơn đồng hạng thì trả về tất cả).
-     *
-     * SELECT dh.MaDonHang, SUM(ct.SoLuong * ct.DonGia * (1 - ct.TyLeGiamGia)) AS TongTien,
-     *        kh.MaKhachHang, kh.HoTen, kh.ThanhPho, kh.Email
-     * FROM DonHang dh
-     * JOIN ChiTietDonHang ct ON dh.MaDonHang = ct.MaDonHang
-     * JOIN KhachHang kh ON dh.MaKhachHang = kh.MaKhachHang
-     * GROUP BY dh.MaDonHang, kh.MaKhachHang, kh.HoTen, kh.ThanhPho, kh.Email
-     * ORDER BY TongTien DESC
-     * LIMIT 1;   -- (dùng HAVING = MAX(...) nếu muốn lấy cả đơn đồng hạng)
-     */
     public static List<DonHangKemKhach> cau21_donGiaTriCaoNhat(DataContext ctx) {
         Map<String, Double> tong = tongTienMoiDon(ctx);
         double max = tong.values().stream().mapToDouble(Double::doubleValue).max().orElse(0);
@@ -387,23 +229,6 @@ public class OrderQueries {
         return kq;
     }
 
-    /**
-     * Câu 23: Tìm các đơn bị HỦY hoặc ĐANG XỬ LÝ, và tổng giá trị
-     *         thất thu (đơn hủy) / chờ duyệt (đơn đang xử lý).
-     *
-     * SELECT dh.MaDonHang, dh.TrangThai,
-     *        COALESCE(SUM(ct.SoLuong * ct.DonGia * (1 - ct.TyLeGiamGia)), 0) AS TongTien
-     * FROM DonHang dh
-     * LEFT JOIN ChiTietDonHang ct ON dh.MaDonHang = ct.MaDonHang
-     * WHERE dh.TrangThai IN ('DA_HUY', 'DANG_XU_LY')
-     * GROUP BY dh.MaDonHang, dh.TrangThai;
-     *
-     * -- Tổng theo trạng thái:
-     * SELECT dh.TrangThai, SUM(ct.SoLuong * ct.DonGia * (1 - ct.TyLeGiamGia)) AS TongGiaTri
-     * FROM DonHang dh JOIN ChiTietDonHang ct ON dh.MaDonHang = ct.MaDonHang
-     * WHERE dh.TrangThai IN ('DA_HUY', 'DANG_XU_LY')
-     * GROUP BY dh.TrangThai;
-     */
     public static KetQuaCau23 cau23_donHuyVaDangXuLy(DataContext ctx) {
         Map<String, Double> tong = tongTienMoiDon(ctx);
         KetQuaCau23 kq = new KetQuaCau23();
@@ -420,24 +245,6 @@ public class OrderQueries {
         return kq;
     }
 
-    // =====================================================================
-    // CÂU 29, 30: AOV VÀ MA TRẬN KHÁCH HÀNG
-    // =====================================================================
-
-    /**
-     * Câu 29: Giá trị đơn hàng trung bình (AOV) của mỗi khách hàng ĐÃ MUA
-     *         (chỉ khách có ít nhất 1 đơn hoàn thành), giảm dần.
-     *         AOV = tổng chi tiêu / số đơn.
-     *
-     * SELECT kh.MaKhachHang, kh.HoTen,
-     *        SUM(ct.SoLuong * ct.DonGia * (1 - ct.TyLeGiamGia)) / COUNT(DISTINCT dh.MaDonHang) AS AOV
-     * FROM KhachHang kh
-     * JOIN DonHang dh ON kh.MaKhachHang = dh.MaKhachHang
-     * JOIN ChiTietDonHang ct ON dh.MaDonHang = ct.MaDonHang
-     * WHERE dh.TrangThai = 'HOAN_THANH'
-     * GROUP BY kh.MaKhachHang, kh.HoTen
-     * ORDER BY AOV DESC;
-     */
     public static Map<KhachHang, Double> cau29_aovMoiKhach(DataContext ctx) {
         Map<String, Double> chiTieu = doanhThuTheoMaKhach(ctx);
         Map<String, Long> soDon = soDonTheoMaKhach(ctx);
@@ -451,30 +258,10 @@ public class OrderQueries {
         }
         return sapXepGiamDan(kq);
     }
-
-    /**
-     * Câu 30: Báo cáo ma trận khách hàng: Tên, Tổng số đơn, Tổng sản phẩm đã mua,
-     *         Tổng chi tiêu (tính trên đơn HOÀN THÀNH; khách chưa mua hiện 0).
-     *         "Tổng sản phẩm" = tổng SoLuong. Sắp xếp theo chi tiêu giảm dần.
-     *
-     * SELECT kh.HoTen,
-     *        COUNT(DISTINCT dh.MaDonHang) AS TongSoDon,
-     *        COALESCE(SUM(ct.SoLuong), 0) AS TongSanPham,
-     *        COALESCE(SUM(ct.SoLuong * ct.DonGia * (1 - ct.TyLeGiamGia)), 0) AS TongChiTieu
-     * FROM KhachHang kh
-     * LEFT JOIN DonHang dh
-     *        ON kh.MaKhachHang = dh.MaKhachHang AND dh.TrangThai = 'HOAN_THANH'
-     * LEFT JOIN ChiTietDonHang ct ON dh.MaDonHang = ct.MaDonHang
-     * GROUP BY kh.MaKhachHang, kh.HoTen
-     * ORDER BY TongChiTieu DESC;
-     */
     public static List<BaoCaoKhachHang> cau30_maTranKhachHang(DataContext ctx) {
-        // maDonHang -> maKhachHang (chỉ đơn được tính)
         Map<String, String> donCuaKhach = ctx.getDonHangs().stream()
                 .filter(TINH_DOANH_THU)
                 .collect(Collectors.toMap(DonHang::getMaDonHang, DonHang::getMaKhachHang, (a, b) -> a));
-
-        // maKhachHang -> tổng số lượng sản phẩm
         Map<String, Integer> soLuongTheoKhach = ctx.getChiTietDonHangs().stream()
                 .filter(ct -> donCuaKhach.containsKey(ct.getMaDonHang()))
                 .collect(Collectors.groupingBy(
@@ -495,10 +282,6 @@ public class OrderQueries {
         kq.sort((a, b) -> Double.compare(b.tongChiTieu, a.tongChiTieu));
         return kq;
     }
-
-    // =====================================================================
-    // CHẠY THỬ TẤT CẢ (gọi từ Main.java để kiểm tra kết quả)
-    // =====================================================================
     public static void chayTatCa(DataContext ctx) {
         System.out.println(" Câu 6: Đơn hoàn thành trong tháng 02/2026 ");
         cau6_donHoanThanhThang02_2026(ctx).forEach(System.out::println);
