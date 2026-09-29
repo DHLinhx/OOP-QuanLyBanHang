@@ -226,7 +226,6 @@ public class ProductQueries {
         System.out.println("Câu 1: Liệt kê sản phẩm ");
         cau1_lietKeSanPham(ctx).forEach(sp -> System.out.println(moTa(sp)));
 
-        // Khoảng giá ví dụ, hãy đổi theo đề / dữ liệu thật
         double giaMin = 10_000_000, giaMax = 30_000_000;
         System.out.printf("%nCâu 2: Laptop giá từ %,.0f đến %,.0f (giảm dần) %n", giaMin, giaMax);
         cau2_locLaptopTheoGia(ctx, giaMin, giaMax).forEach(sp -> System.out.println(moTa(sp)));
